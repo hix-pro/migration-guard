@@ -1,4 +1,5 @@
 use std::env;
+use std::ffi::OsStr;
 use std::io::IsTerminal;
 
 use crate::model::Severity;
@@ -20,7 +21,10 @@ pub struct Style {
 
 impl Style {
     pub fn auto() -> Self {
-        let enabled = std::io::stdout().is_terminal() && env::var_os("NO_COLOR").is_none();
+        let enabled = color_enabled(
+            std::io::stdout().is_terminal(),
+            env::var_os("NO_COLOR").as_deref(),
+        );
         Self { enabled }
     }
 
@@ -67,6 +71,13 @@ impl Style {
     }
 }
 
+/// ANSI styling is enabled only for interactive terminals, and disabled when
+/// `NO_COLOR` is set to any non-empty value (<https://no-color.org/>).
+fn color_enabled(is_terminal: bool, no_color: Option<&OsStr>) -> bool {
+    let no_color = no_color.is_some_and(|value| !value.is_empty());
+    is_terminal && !no_color
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,5 +104,20 @@ mod tests {
                 .contains("\x1b[33m")
         );
         assert!(style.pass("PASS").contains("\x1b[1;32m"));
+    }
+
+    #[test]
+    fn color_requires_a_terminal() {
+        assert!(!color_enabled(false, None));
+        assert!(!color_enabled(false, Some(OsStr::new(""))));
+        assert!(!color_enabled(false, Some(OsStr::new("1"))));
+        assert!(color_enabled(true, None));
+    }
+
+    #[test]
+    fn only_a_non_empty_no_color_disables_color() {
+        assert!(color_enabled(true, Some(OsStr::new(""))));
+        assert!(!color_enabled(true, Some(OsStr::new("1"))));
+        assert!(!color_enabled(true, Some(OsStr::new("0"))));
     }
 }

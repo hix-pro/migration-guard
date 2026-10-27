@@ -42,7 +42,7 @@ pub fn split_statements(source: &str, dialect: DialectKind) -> Result<Vec<Statem
                 i = skip_backtick_quoted(source, i)?;
             }
             b'$' if dialect.supports_dollar_quotes() => {
-                if let Some(tag) = dollar_quote_tag(source, i) {
+                if let Some(tag) = dollar_quote_opener(source, i, dialect) {
                     let body_start = i + tag.len();
                     if let Some(relative) = source[body_start..].find(tag) {
                         i = body_start + relative + tag.len();
@@ -194,16 +194,51 @@ fn skip_backtick_quoted(source: &str, start: usize) -> Result<usize> {
     )
 }
 
-/// Return the complete dollar-quote tag (for example `$$` or `$body$`) that
-/// starts at `start`, if the input has one.
-fn dollar_quote_tag(source: &str, start: usize) -> Option<&str> {
-    let bytes = source.as_bytes();
-    let mut i = start + 1;
-    while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
-        i += 1;
+/// Return the dollar-quote tag starting at `start` (for example `$$` or
+/// `$body$`), if the `$` there actually opens a dollar-quoted string.
+///
+/// This mirrors sqlparser's tokenizer dispatch: a `$` that directly follows an
+/// identifier-continuation character is part of that identifier (`foo$bar$`
+/// is one name), so it never opens a dollar quote.
+fn dollar_quote_opener(source: &str, start: usize, dialect: DialectKind) -> Option<&str> {
+    let follows_identifier = source[..start]
+        .chars()
+        .next_back()
+        .is_some_and(|previous| is_identifier_part(previous, dialect));
+    if follows_identifier {
+        return None;
     }
-    if i < bytes.len() && bytes[i] == b'$' {
-        Some(&source[start..=i])
+    dollar_quote_tag(source, start)
+}
+
+/// sqlparser's `Dialect::is_identifier_part` for the dialects that support
+/// dollar quotes. Only Postgres and Generic ever reach this check.
+fn is_identifier_part(ch: char, dialect: DialectKind) -> bool {
+    match dialect {
+        DialectKind::Postgres => {
+            ch.is_alphabetic() || ch.is_ascii_digit() || ch == '$' || ch == '_' || !ch.is_ascii()
+        }
+        DialectKind::Generic => {
+            ch.is_alphabetic() || ch.is_ascii_digit() || matches!(ch, '@' | '$' | '#' | '_')
+        }
+        DialectKind::Mysql | DialectKind::Sqlite => false,
+    }
+}
+
+/// Return the complete dollar-quote tag (for example `$$` or `$body$`) that
+/// starts at `start`, if the input has one. Tags follow PostgreSQL's
+/// unquoted-identifier rules: Unicode alphanumerics and `_`.
+fn dollar_quote_tag(source: &str, start: usize) -> Option<&str> {
+    let mut end = start + 1;
+    for ch in source[start + 1..].chars() {
+        if ch.is_alphanumeric() || ch == '_' {
+            end += ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    if source[end..].starts_with('$') {
+        Some(&source[start..=end])
     } else {
         None
     }
@@ -388,6 +423,45 @@ mod tests {
         assert!(split_statements("SELECT $$oops;", DialectKind::Postgres).is_err());
         assert!(split_statements("SELECT 1; /* oops", DialectKind::Postgres).is_err());
         assert!(split_statements("SELECT \"oops;", DialectKind::Postgres).is_err());
+    }
+
+    #[test]
+    fn dollars_inside_identifiers_do_not_open_dollar_quotes() {
+        for dialect in [DialectKind::Postgres, DialectKind::Generic] {
+            let chunks =
+                split_statements("SELECT foo$bar$baz;", dialect).expect("identifier with $");
+            assert_eq!(chunks.len(), 1);
+            assert_eq!(chunks[0].text, "SELECT foo$bar$baz;");
+
+            let chunks =
+                split_statements("SELECT foo$$bar$$;", dialect).expect("identifier with $$");
+            assert_eq!(chunks.len(), 1);
+            assert_eq!(chunks[0].text, "SELECT foo$$bar$$;");
+        }
+    }
+
+    #[test]
+    fn unicode_dollar_quote_tags_are_supported() {
+        let sql = "DO $é$ SELECT ';'; END $é$;\nSELECT 1;";
+        let chunks = split_statements(sql, DialectKind::Postgres).unwrap();
+        assert_eq!(chunks.len(), 2);
+        assert!(chunks[0].text.starts_with("DO $é$"));
+        assert!(chunks[0].text.ends_with("END $é$;"));
+        assert_eq!(chunks[1].text, "SELECT 1;");
+        assert_eq!(chunks[1].line, 2);
+    }
+
+    #[test]
+    fn dollar_quotes_still_open_after_punctuation_and_at_statement_start() {
+        let sql = "SELECT f($tag$ a;b $tag$, $tag$ c;d $tag$);";
+        let chunks = split_statements(sql, DialectKind::Postgres).unwrap();
+        assert_eq!(chunks.len(), 1);
+
+        let sql = "$fn$ SELECT ';'; $fn$;";
+        let chunks = split_statements(sql, DialectKind::Postgres).unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert!(chunks[0].text.starts_with("$fn$"));
+        assert!(chunks[0].text.ends_with("$fn$;"));
     }
 
     #[test]

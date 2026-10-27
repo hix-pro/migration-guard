@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Valid PostgreSQL identifiers that contain `$` (for example `SELECT foo$bar$baz;`) no longer trigger false "unterminated dollar-quoted string" errors, and dollar-quote tags may now contain Unicode letters (for example `DO $é$ … $é$;`).
+- `NO_COLOR` now follows the no-color.org convention: only a non-empty value disables colored output, so an empty `NO_COLOR` keeps color on interactive terminals.
+
 ## [0.3.0] - 2026-10-27
 
 ### Added
