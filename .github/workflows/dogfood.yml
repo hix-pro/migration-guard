@@ -1,0 +1,24 @@
+name: Dogfood
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: migration-guard checks its own safe fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Uses the action.yml in this repository. The whole repo cannot be scanned
+      # because tests/fixtures deliberately contains destructive and unparseable
+      # files; the safe fixtures must stay clean at the destructive threshold.
+      - uses: ./
+        with:
+          paths: tests/fixtures/safe.sql tests/fixtures/transaction.sql
+          fail-on: destructive

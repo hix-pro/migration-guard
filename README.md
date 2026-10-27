@@ -212,6 +212,19 @@ Field notes:
 
 Markdown output has a fixed structure: a metadata list, one section per file, a heading for each finding with the statement in a fenced SQL block, and a final Summary table followed by a bold `**Result:**` line. It is intended for pull-request comments and reports. Use JSON for automation.
 
+## GitHub Action
+
+The repository ships a composite action that installs Migration Guard and runs it against your workspace — no Rust setup in your workflow:
+
+```yaml
+- uses: hix-pro/migration-guard@v0.1.0
+  with:
+    paths: migrations
+    fail-on: destructive
+```
+
+Inputs: `paths` (space-separated files or directories, default `.`), `dialect` (`postgres` or `mysql`, default `postgres`), `fail-on` (`destructive`, `risky`, `warning`, or empty for report-only), and `args` for extra CLI flags such as `--format markdown`. The threshold is inclusive, so `risky` also fails on `destructive`. The first run compiles the tool from source, which takes a minute or two; pin a tag so upgrades are explicit. The repository's own pipeline re-checks its safe fixtures through the action in a Dogfood workflow.
+
 ## CI
 
 The tool does not require a database, so it can run in any job that has the binary:

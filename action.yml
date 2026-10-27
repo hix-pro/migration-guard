@@ -1,0 +1,53 @@
+name: Migration Guard
+description: >-
+  Statically catch destructive SQL migrations and table-locking operations
+  before they ship. Never connects to a database.
+branding:
+  icon: alert-triangle
+  color: red
+
+inputs:
+  paths:
+    description: One or more .sql files or directories, space-separated (directories are scanned recursively).
+    required: false
+    default: '.'
+  dialect:
+    description: 'SQL dialect used to parse statements: postgres or mysql.'
+    required: false
+    default: postgres
+  fail-on:
+    description: >-
+      Exit 2 when findings reach this severity: destructive, risky, or warning
+      (inclusive). Leave empty for report-only mode.
+    required: false
+    default: ''
+  args:
+    description: Extra arguments passed through to `migration-guard check` (e.g. `--format markdown`).
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@stable
+
+    - name: Install Migration Guard
+      shell: bash
+      run: cargo install --locked --path "$GITHUB_ACTION_PATH"
+
+    - name: Run Migration Guard
+      shell: bash
+      env:
+        MG_PATHS: ${{ inputs.paths }}
+        MG_DIALECT: ${{ inputs.dialect }}
+        MG_FAIL_ON: ${{ inputs.fail-on }}
+        MG_ARGS: ${{ inputs.args }}
+      run: |
+        args=(--dialect "$MG_DIALECT")
+        if [[ -n "$MG_FAIL_ON" ]]; then
+          args+=(--fail-on "$MG_FAIL_ON")
+        fi
+        # MG_PATHS and MG_ARGS are deliberately word-split: callers may pass
+        # several paths and flags in one input.
+        # shellcheck disable=SC2086
+        exec migration-guard check $MG_PATHS "${args[@]}" $MG_ARGS
