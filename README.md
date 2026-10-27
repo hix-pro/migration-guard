@@ -3,6 +3,7 @@
 **Catch dangerous SQL migrations before they lock tables or delete data.**
 
 [![CI](https://github.com/hix-pro/migration-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/hix-pro/migration-guard/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/hix-pro/migration-guard)](https://github.com/hix-pro/migration-guard/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Migration Guard is a local-first Rust CLI that statically analyzes `.sql` migration files. It parses each statement, applies a small set of deterministic rules, and reports destructive commands, blocking DDL, and breaking renames. It never connects to a database and makes no network requests.
