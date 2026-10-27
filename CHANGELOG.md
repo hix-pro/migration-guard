@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.1] - 2026-10-28
 
 ### Fixed
 - Valid PostgreSQL identifiers that contain `$` (for example `SELECT foo$bar$baz;`) no longer trigger false "unterminated dollar-quoted string" errors, and dollar-quote tags may now contain Unicode letters (for example `DO $é$ … $é$;`).
