@@ -225,7 +225,7 @@ Markdown output has a fixed structure: a metadata list, one section per file, a 
 The repository ships a composite action that installs Migration Guard and runs it against your workspace — no Rust setup in your workflow:
 
 ```yaml
-- uses: hix-pro/migration-guard@v0.2.0
+- uses: hix-pro/migration-guard@v0.3.0
   with:
     paths: migrations
     fail-on: destructive
