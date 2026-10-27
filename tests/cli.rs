@@ -308,5 +308,5 @@ fn help_and_version_exit_zero() {
 
     let version = run(&["--version"]);
     assert_exit(&version, 0);
-    assert!(stdout(&version).contains("migration-guard 0.1.0"));
+    assert!(stdout(&version).contains(&format!("migration-guard {}", env!("CARGO_PKG_VERSION"))));
 }
