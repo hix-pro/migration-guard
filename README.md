@@ -268,6 +268,21 @@ cargo run -- check examples --fail-on risky
 
 Unit tests cover every rule, statement splitting, transaction transitions, and report rendering. Integration tests in `tests/cli.rs` exercise exit codes, recursive discovery, JSON shape, Markdown output, parse failures, and dialect behavior using fixtures in `tests/fixtures/`.
 
+## Related tools
+
+| Tool | What it does |
+| --- | --- |
+| [EnvAudit](https://github.com/hix-pro/env-audit) | find missing, undocumented, and unused environment variables |
+| [API Watch](https://github.com/hix-pro/api-watch) | catch breaking changes in your OpenAPI and JSON contracts |
+| [RepoRace](https://github.com/hix-pro/reporace) | see which GitHub repositories are accelerating |
+| [TypeShift](https://github.com/hix-pro/typeshift) | decide the semver bump from a TypeScript declaration diff |
+| [ActionLens](https://github.com/hix-pro/action-lens) | see what a GitHub Actions workflow really does, before it hits main |
+| [ComposeMap](https://github.com/hix-pro/compose-map) | understand your Docker Compose stack and its production risks at a glance |
+| [OpenCode Telegram](https://github.com/hix-pro/opencode-telegram) | control a local OpenCode server from Telegram |
+---
+
+_Part of the **[hix tools](https://github.com/hix-pro#readme)** suite — local-first, no backend, CI-ready._
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
