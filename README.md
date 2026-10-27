@@ -65,6 +65,14 @@ cd migration-guard
 cargo install --path . --locked
 ```
 
+Or grab a prebuilt binary — every version ships tarballs for Linux x86_64 (gnu), macOS (Apple Silicon), and Windows x86_64, each with a SHA-256 checksum:
+
+```sh
+curl -LO https://github.com/hix-pro/migration-guard/releases/latest/download/migration-guard-x86_64-unknown-linux-gnu.tar.gz
+tar xzf migration-guard-x86_64-unknown-linux-gnu.tar.gz
+install migration-guard-x86_64-unknown-linux-gnu/migration-guard /usr/local/bin/
+```
+
 Or build a release binary in place:
 
 ```sh
