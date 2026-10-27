@@ -1,0 +1,20 @@
+[package]
+name = "migration-guard"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Catch dangerous SQL migrations before they lock tables or delete data"
+repository = "https://github.com/hix-pro/migration-guard"
+homepage = "https://github.com/hix-pro/migration-guard"
+license = "MIT"
+readme = "README.md"
+keywords = ["sql", "migration", "postgresql", "linter", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+authors = ["hix-pro"]
+
+[dependencies]
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sqlparser = "0.63.0"
