@@ -93,7 +93,7 @@ Each `PATH` is a `.sql` file or a directory. Directories are scanned recursively
 | Option | Values | Default | Description |
 | --- | --- | --- | --- |
 | `--dialect` | `postgres`, `mysql`, `sqlite`, `generic` | `postgres` | Parser dialect and rule set |
-| `--format` | `text`, `json`, `markdown` | `text` | Report format |
+| `--format` | `text`, `json`, `markdown`, `sarif` | `text` | Report format |
 | `--fail-on` | `destructive`, `risky`, `warning` | unset | Exit `2` when a finding is at or above this severity |
 | `-h`, `--help` | | | Show help |
 | `-V`, `--version` | | | Show the version |
@@ -167,6 +167,35 @@ Statements that are known not to match the rules above are silently accepted. Th
 
 Text output is grouped by file. On an interactive terminal, severities are colored; `NO_COLOR=1` (or any non-empty `NO_COLOR`) disables ANSI color, and piped output is always plain. The final two lines are the `Summary:` counts followed by a `Result: PASS` or `Result: FAIL` line.
 
+### SARIF
+
+`--format sarif` emits [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) for GitHub code scanning and other SARIF consumers:
+
+```bash
+migration-guard check migrations --format sarif > migration-guard.sarif
+```
+
+Rule IDs match the text and JSON reports (`MG001` through `MG013`). Destructive and risky findings map to SARIF `error`; warnings map to `warning`. Each result points at the SQL file and the statement's first line, so annotations land on the migration that needs review.
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: dtolnay/rust-toolchain@stable
+  - run: cargo install --git https://github.com/hix-pro/migration-guard --locked
+  - run: migration-guard check migrations --format sarif > migration-guard.sarif
+  - uses: github/codeql-action/upload-sarif@v3
+    if: always()
+    with:
+      sarif_file: migration-guard.sarif
+      category: migration-guard
+```
+
+The composite action below does this automatically when `sarif: true`.
+
 ### JSON
 
 JSON output is a single document with `schema_version: 1`. It is stable within schema version 1; incompatible changes will increment the version.
@@ -231,7 +260,22 @@ The repository ships a composite action that installs Migration Guard and runs i
     fail-on: destructive
 ```
 
-Inputs: `paths` (space-separated files or directories, default `.`), `dialect` (`postgres` or `mysql`, default `postgres`), `fail-on` (`destructive`, `risky`, `warning`, or empty for report-only), and `args` for extra CLI flags such as `--format markdown`. The threshold is inclusive, so `risky` also fails on `destructive`. The first run compiles the tool from source, which takes a minute or two; pin a tag so upgrades are explicit. The repository's own pipeline re-checks its safe fixtures through the action in a Dogfood workflow.
+Inputs: `paths` (space-separated files or directories, default `.`), `dialect` (`postgres` or `mysql`, default `postgres`), `fail-on` (`destructive`, `risky`, `warning`, or empty for report-only), `args` for extra CLI flags, `sarif` (default `true`), and `category` (default `migration-guard`). With `sarif: true`, the action writes a SARIF report, uploads it for code scanning, and preserves the check's exit code. The caller needs `security-events: write`; the upload does not change the scan result.
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: hix-pro/migration-guard@v0.3.1
+    with:
+      paths: migrations
+      fail-on: destructive
+```
+
+The threshold is inclusive, so `risky` also fails on `destructive`. The first run compiles the tool from source, which takes a minute or two; pin a tag so upgrades are explicit. The repository's own pipeline re-checks its safe fixtures through the action in a Dogfood workflow.
 
 ## CI
 

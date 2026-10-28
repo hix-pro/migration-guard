@@ -197,6 +197,33 @@ fn json_report_only_uses_null_fail_on() {
 }
 
 #[test]
+fn sarif_output_is_valid_and_preserves_the_exit_code() {
+    let output = run(&[
+        "check",
+        "tests/fixtures/risky.sql",
+        "--format",
+        "sarif",
+        "--fail-on",
+        "risky",
+    ]);
+    assert_exit(&output, 2);
+
+    let value: Value = serde_json::from_str(&stdout(&output)).unwrap();
+    assert_eq!(value["version"], "2.1.0");
+    assert_eq!(
+        value["runs"][0]["tool"]["driver"]["name"],
+        "Migration Guard"
+    );
+    let results = value["runs"][0]["results"].as_array().unwrap();
+    assert!(!results.is_empty());
+    assert_eq!(results[0]["ruleId"], "MG005");
+    assert_eq!(
+        results[0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"],
+        "tests/fixtures/risky.sql"
+    );
+}
+
+#[test]
 fn markdown_output_is_grouped_and_has_a_result_line() {
     let output = run(&[
         "check",

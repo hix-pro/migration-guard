@@ -50,6 +50,7 @@ pub enum OutputFormat {
     Text,
     Json,
     Markdown,
+    Sarif,
 }
 
 /// CLI spelling of severity thresholds. The declarations are ordered from most
