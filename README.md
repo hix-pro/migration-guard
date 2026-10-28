@@ -14,7 +14,7 @@ This is an early, focused tool. It is meant to add a guardrail to review and CI,
 
 ```console
 $ migration-guard check examples/risky.sql --fail-on risky
-migration-guard 0.3.0  ·  postgres  ·  1 file
+migration-guard 0.3.1  ·  postgres  ·  1 file
 
 examples/risky.sql  (8 statements)
   risky        MG005  line 2
@@ -175,7 +175,7 @@ JSON output is a single document with `schema_version: 1`. It is stable within s
 {
   "schema_version": 1,
   "tool": "migration-guard",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "dialect": "postgres",
   "fail_on": "risky",
   "files": [
