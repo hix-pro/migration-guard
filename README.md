@@ -254,7 +254,7 @@ Markdown output has a fixed structure: a metadata list, one section per file, a 
 The repository ships a composite action that installs Migration Guard and runs it against your workspace — no Rust setup in your workflow:
 
 ```yaml
-- uses: hix-pro/migration-guard@v0.3.1
+- uses: hix-pro/migration-guard@main
   with:
     paths: migrations
     fail-on: destructive
@@ -269,13 +269,13 @@ permissions:
 
 steps:
   - uses: actions/checkout@v4
-  - uses: hix-pro/migration-guard@v0.3.1
+  - uses: hix-pro/migration-guard@main
     with:
       paths: migrations
       fail-on: destructive
 ```
 
-The threshold is inclusive, so `risky` also fails on `destructive`. The first run compiles the tool from source, which takes a minute or two; pin a tag so upgrades are explicit. The repository's own pipeline re-checks its safe fixtures through the action in a Dogfood workflow.
+The threshold is inclusive, so `risky` also fails on `destructive`. The SARIF support in this section is on `main` until the next tagged release; pin that tag when it is published. The first run compiles the tool from source, which takes a minute or two. The repository's own pipeline re-checks its safe fixtures through the action in a Dogfood workflow.
 
 ## CI
 
