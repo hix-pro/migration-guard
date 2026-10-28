@@ -305,6 +305,8 @@ Unit tests cover every rule, statement splitting, transaction transitions, and r
 
 _Part of the **[hix tools](https://github.com/hix-pro#readme)** suite — local-first, no backend, CI-ready._
 
+**Deep dive:** [Static SQL migration analysis without a database](https://hix-pro.github.io/blog/posts/02-migration-guard-static-sql-analysis.html)
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
