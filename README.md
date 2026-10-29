@@ -187,7 +187,7 @@ steps:
   - uses: dtolnay/rust-toolchain@stable
   - run: cargo install --git https://github.com/hix-pro/migration-guard --locked
   - run: migration-guard check migrations --format sarif > migration-guard.sarif
-  - uses: github/codeql-action/upload-sarif@v3
+  - uses: github/codeql-action/upload-sarif@v4
     if: always()
     with:
       sarif_file: migration-guard.sarif
