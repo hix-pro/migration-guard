@@ -6,7 +6,7 @@
 [![Release](https://img.shields.io/github/v/release/hix-pro/migration-guard)](https://github.com/hix-pro/migration-guard/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Migration Guard is a local-first Rust CLI that statically analyzes `.sql` migration files. It parses each statement, applies a small set of deterministic rules, and reports destructive commands, blocking DDL, and breaking renames. It never connects to a database and makes no network requests.
+Migration Guard is a local-first Rust CLI that finds SQL migration directories and statically analyzes the `.sql` files inside them. It parses each statement, applies a small set of deterministic rules, and reports destructive commands, blocking DDL, and breaking renames. It never connects to a database and makes no network requests.
 
 This is an early, focused tool. It is meant to add a guardrail to review and CI, not to replace staging tests, backups, or a rollback plan.
 
@@ -14,7 +14,7 @@ This is an early, focused tool. It is meant to add a guardrail to review and CI,
 
 ```console
 $ migration-guard check examples/risky.sql --fail-on risky
-migration-guard 0.3.1  ·  postgres  ·  1 file
+migration-guard 0.4.0  ·  postgres  ·  1 file
 
 examples/risky.sql  (8 statements)
   risky        MG005  line 2
@@ -85,24 +85,86 @@ The repository commits `Cargo.lock`, so `--locked` builds are reproducible.
 ## Usage
 
 ```text
-migration-guard check <PATH...> [OPTIONS]
+migration-guard check [PATH...] [OPTIONS]
+migration-guard discover [PATH] [--format text|json]
 ```
 
-Each `PATH` is a `.sql` file or a directory. Directories are scanned recursively for `.sql` files (case-insensitive extension). Results are sorted by path and duplicate files are removed.
+Each `PATH` is a `.sql` file or a directory. Directories are scanned recursively for `.sql` files (case-insensitive extension). Results are sorted by path and duplicate files are removed. With no `PATH`, `check` auto-discovers known migration directories under `--root` (default `.`).
 
 | Option | Values | Default | Description |
 | --- | --- | --- | --- |
 | `--dialect` | `postgres`, `mysql`, `sqlite`, `generic` | `postgres` | Parser dialect and rule set |
 | `--format` | `text`, `json`, `markdown`, `sarif` | `text` | Report format |
 | `--fail-on` | `destructive`, `risky`, `warning` | unset | Exit `2` when a finding is at or above this severity |
+| `--root` | directory | `.` | Project root used for discovery when no `PATH` is given |
 | `-h`, `--help` | | | Show help |
 | `-V`, `--version` | | | Show the version |
 
 Without `--fail-on`, the tool is report-only: findings are printed, but the exit code is `0`. A threshold is inclusive, so `--fail-on risky` fails on both `risky` and `destructive` findings.
 
+### Framework discovery
+
+With no `PATH`, `check` searches the project root for migration directories used by common SQL frameworks:
+
+| Framework | Directories |
+| --- | --- |
+| Flyway | `db/migration`, including `src/main/resources/db/migration` |
+| Liquibase | `db/changelog`, `db/changelogs` |
+| Prisma | `prisma/migrations` |
+| Drizzle | `drizzle`, `drizzle/migrations` |
+| Supabase | `supabase/migrations` |
+| Generic SQL | `migrations`, `migration`, `migrate`, including `db/migrations` and `sql/migrations` |
+
+The walk goes at most 10 directories deep and skips VCS, dependency, build, cache, and virtualenv directories as well as symlinks. A directory is reported only when it contains at least one `.sql` file. The framework label is a best-effort hint; every directory is analyzed with the same rules.
+
+```console
+$ migration-guard discover
+migration-guard 0.4.0  ·  discovery  ·  2 directories, 14 SQL files
+root: .
+
+  Prisma      prisma/migrations  (7 files)
+  Flyway      services/api/src/main/resources/db/migration  (7 files)
+
+Run migration-guard check to analyze these directories.
+```
+
+Use `migration-guard discover --format json` for automation:
+
+```json
+{
+  "schema_version": 1,
+  "tool": "migration-guard",
+  "version": "0.4.0",
+  "root": ".",
+  "directories": [
+    { "path": "prisma/migrations", "framework": "prisma", "sql_files": 7 }
+  ]
+}
+```
+
+To discover from a subdirectory, pass `--root`. It only applies when no explicit paths are given:
+
+```sh
+migration-guard check --root services/api
+```
+
+When no paths are given and nothing is discovered, `check` exits `1` instead of reporting a clean empty run. Pass a path explicitly if your migrations live somewhere else:
+
+```sh
+migration-guard check db/custom_migrations
+```
+
+Discovery is heuristic. A directory that does not match one of the patterns above is not scanned automatically.
+
 ### Examples
 
 ```sh
+# Discover the usual migration directories under the current project
+migration-guard check
+
+# See what discovery would scan without running the rules
+migration-guard discover
+
 # Report everything, but do not fail the command
 migration-guard check migrations
 
@@ -123,8 +185,8 @@ migration-guard check migrations --format markdown > migration-report.md
 
 | Code | Meaning |
 | ---: | --- |
-| `0` | No findings at or above `--fail-on`; also the default report-only mode and empty directories |
-| `1` | I/O error, unreadable or invalid UTF-8 file, SQL parse error, or command-line usage error |
+| `0` | No findings at or above `--fail-on`; also the default report-only mode and explicitly scanned empty directories |
+| `1` | I/O error, unreadable or invalid UTF-8 file, SQL parse error, command-line usage error, or no directories found during auto-discovery |
 | `2` | At least one finding at or above `--fail-on` |
 
 A parse error stops the run and is reported on stderr. Constructs that are recognized but cannot be analyzed, such as `DO` blocks, produce a `warning` finding instead. See [Limitations](#limitations).
@@ -204,7 +266,7 @@ JSON output is a single document with `schema_version: 1`. It is stable within s
 {
   "schema_version": 1,
   "tool": "migration-guard",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "dialect": "postgres",
   "fail_on": "risky",
   "files": [
@@ -254,13 +316,14 @@ Markdown output has a fixed structure: a metadata list, one section per file, a 
 The repository ships a composite action that installs Migration Guard and runs it against your workspace — no Rust setup in your workflow:
 
 ```yaml
-- uses: hix-pro/migration-guard@main
+- uses: hix-pro/migration-guard@v0.4.0
   with:
-    paths: migrations
     fail-on: destructive
 ```
 
-Inputs: `paths` (space-separated files or directories, default `.`), `dialect` (`postgres` or `mysql`, default `postgres`), `fail-on` (`destructive`, `risky`, `warning`, or empty for report-only), `args` for extra CLI flags, `sarif` (default `true`), and `category` (default `migration-guard`). With `sarif: true`, the action writes a SARIF report, uploads it for code scanning, and preserves the check's exit code. The caller needs `security-events: write`; the upload does not change the scan result.
+With `paths` empty (the default), the action runs `migration-guard check` with framework discovery. Set `paths` to scan specific files or directories instead: `paths: .` scans every `.sql` file in the repository, while `paths: db/migrations` pins one directory.
+
+Inputs: `paths` (space-separated files or directories; leave empty to discover, default empty), `dialect` (`postgres` or `mysql`, default `postgres`), `fail-on` (`destructive`, `risky`, `warning`, or empty for report-only), `args` for extra CLI flags, `sarif` (default `true`), and `category` (default `migration-guard`). With `sarif: true`, the action writes a SARIF report, uploads it for code scanning, and preserves the check's exit code. The caller needs `security-events: write`; the upload does not change the scan result.
 
 ```yaml
 permissions:
@@ -269,13 +332,12 @@ permissions:
 
 steps:
   - uses: actions/checkout@v4
-  - uses: hix-pro/migration-guard@main
+  - uses: hix-pro/migration-guard@v0.4.0
     with:
-      paths: migrations
       fail-on: destructive
 ```
 
-The threshold is inclusive, so `risky` also fails on `destructive`. The SARIF support in this section is on `main` until the next tagged release; pin that tag when it is published. The first run compiles the tool from source, which takes a minute or two. The repository's own pipeline re-checks its safe fixtures through the action in a Dogfood workflow.
+The threshold is inclusive, so `risky` also fails on `destructive`. Prebuilt binaries are attached to every tagged release, so the action installs the matching binary without compiling; a branch or SHA ref falls back to building from source. The repository's own pipeline re-checks its safe fixtures through the action in a Dogfood workflow.
 
 ## CI
 
@@ -303,7 +365,7 @@ Start with `destructive` to block data loss immediately, then tighten to `risky`
 
 ## How it works
 
-1. Paths are expanded into a sorted, deduplicated list of `.sql` files.
+1. When no paths are supplied, the discovery walk finds known migration directories under the project root. Explicit paths are used as given. Either way, the selected directories are expanded into a sorted, deduplicated list of `.sql` files.
 2. A small scanner splits the file into top-level statements. It understands single-quoted strings, quoted identifiers, backticks in MySQL/SQLite, `--`, `#` (MySQL), and nested `/* */` comments, and PostgreSQL dollar-quoted bodies, so semicolons inside them do not create false statement boundaries.
 3. Each statement is parsed with `sqlparser` using the selected dialect.
 4. The AST is checked against the rules, while an explicit transaction flag is updated by `BEGIN`/`START TRANSACTION`, `COMMIT`, `ROLLBACK`, and savepoints. That flag powers `MG011`.
@@ -319,6 +381,7 @@ Start with `destructive` to block data loss immediately, then tighten to `risky`
 - **Opaque SQL is warned about, not inspected.** `DO` blocks and statement types outside the rule set produce `MG013`. The SQL inside `DO` is not analyzed.
 - **Custom SQL splitting is limited.** MySQL `DELIMITER` directives and unusual procedural bodies are not supported. If a statement cannot be parsed, the run exits `1` with the file and statement line. Fixes that require sharing transaction state across files or executing SQL are out of scope.
 - **Dialect parsing is approximate.** `sqlparser` accepts some syntax across dialects. Dialect-specific rules are gated, but the parser is not a database server.
+- **Discovery is heuristic.** Only the directory layouts listed in [Framework discovery](#framework-discovery) are found automatically. Ruby, Python, and JavaScript migration files are not SQL and are not analyzed; custom SQL locations need explicit paths. Symlinked directories are skipped.
 - **Only `.sql` input.** Files must be valid UTF-8. Non-`.sql` explicit paths are rejected; non-`.sql` files inside scanned directories are ignored.
 - **Rule set, not a security scanner.** It does not analyze permissions, injection, or application code.
 

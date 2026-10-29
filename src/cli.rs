@@ -12,7 +12,7 @@ use crate::model::Severity;
     about = "Catch dangerous SQL migrations before they lock tables or delete data",
     long_about = "Migration Guard statically analyzes .sql migration files for destructive statements \
                   and operations that can lock tables in production. It never connects to a database.",
-    after_help = "Exit codes:\n  0  no findings at or above --fail-on (or report-only mode)\n  1  I/O, parse, or usage error\n  2  findings at or above --fail-on"
+    after_help = "Examples:\n  migration-guard check\n  migration-guard check migrations --fail-on destructive\n  migration-guard discover\n  migration-guard discover --format json\n\nExit codes:\n  0  no findings at or above --fail-on (or report-only mode)\n  1  I/O, parse, or usage error\n  2  findings at or above --fail-on"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -23,13 +23,25 @@ pub struct Cli {
 pub enum Command {
     /// Check SQL files or directories for risky migrations
     Check(CheckArgs),
+    /// Discover SQL migration directories used by common frameworks
+    Discover(DiscoverArgs),
 }
 
 #[derive(Debug, Args)]
 pub struct CheckArgs {
-    /// A .sql file or a directory scanned recursively for .sql files
-    #[arg(value_name = "PATH", required = true, num_args = 1..)]
+    /// A .sql file or a directory scanned recursively for .sql files.
+    /// Omit paths to auto-discover known migration directories.
+    #[arg(value_name = "PATH", num_args = 0..)]
     pub paths: Vec<PathBuf>,
+
+    /// Project root used for framework discovery when no paths are given
+    #[arg(
+        long,
+        value_name = "DIR",
+        default_value = ".",
+        conflicts_with = "paths"
+    )]
+    pub root: PathBuf,
 
     /// SQL dialect used to parse statements
     #[arg(long, value_enum, default_value_t = DialectKind::Postgres)]
@@ -42,6 +54,24 @@ pub struct CheckArgs {
     /// Exit 2 when any finding is at or above this severity (default: report only)
     #[arg(long, value_enum)]
     pub fail_on: Option<FailOn>,
+}
+
+#[derive(Debug, Args)]
+pub struct DiscoverArgs {
+    /// Project root to search for migration directories
+    #[arg(value_name = "PATH", default_value = ".")]
+    pub root: PathBuf,
+
+    /// Output format
+    #[arg(long, value_enum, default_value_t = DiscoverFormat::Text)]
+    pub format: DiscoverFormat,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
+pub enum DiscoverFormat {
+    #[default]
+    Text,
+    Json,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]

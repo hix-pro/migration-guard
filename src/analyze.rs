@@ -95,7 +95,7 @@ fn add_file(
     Ok(())
 }
 
-fn has_sql_extension(path: &Path) -> bool {
+pub(crate) fn has_sql_extension(path: &Path) -> bool {
     path.extension()
         .and_then(std::ffi::OsStr::to_str)
         .is_some_and(|extension| extension.eq_ignore_ascii_case("sql"))

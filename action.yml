@@ -8,9 +8,12 @@ branding:
 
 inputs:
   paths:
-    description: One or more .sql files or directories, space-separated (directories are scanned recursively).
+    description: >-
+      One or more .sql files or directories, space-separated (directories are
+      scanned recursively). Leave empty to auto-discover known migration
+      directories.
     required: false
-    default: '.'
+    default: ''
   dialect:
     description: 'SQL dialect used to parse statements: postgres or mysql.'
     required: false
@@ -40,7 +43,7 @@ runs:
   using: composite
   steps:
     # Prefers the prebuilt binary attached to the release matching the action
-    # ref (e.g. @v0.3.1). Anything else — a branch or SHA ref, `uses: ./`,
+    # ref (e.g. @v0.4.0). Anything else — a branch or SHA ref, `uses: ./`,
     # an unsupported platform, or a release without binaries — falls back to
     # building from source below.
     - name: Try prebuilt binary

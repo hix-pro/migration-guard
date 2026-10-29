@@ -6,6 +6,7 @@
 pub mod analyze;
 pub mod cli;
 pub mod dialect;
+pub mod discover;
 pub mod model;
 pub mod report;
 pub mod rules;

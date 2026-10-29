@@ -1,5 +1,7 @@
+use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::Value;
 
@@ -336,4 +338,131 @@ fn help_and_version_exit_zero() {
     let version = run(&["--version"]);
     assert_exit(&version, 0);
     assert!(stdout(&version).contains(&format!("migration-guard {}", env!("CARGO_PKG_VERSION"))));
+}
+
+struct TempTree(PathBuf);
+
+impl TempTree {
+    fn new() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let id = NEXT.fetch_add(1, Ordering::Relaxed);
+        let path =
+            std::env::temp_dir().join(format!("migration-guard-cli-{}-{id}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).unwrap();
+        Self(path)
+    }
+
+    fn write(&self, relative: &str, content: &str) {
+        let path = self.0.join(relative);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, content).unwrap();
+    }
+
+    fn root_str(&self) -> &str {
+        self.0.to_str().unwrap()
+    }
+}
+
+impl Drop for TempTree {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn discover_lists_frameworks_in_text_and_json() {
+    let tree = TempTree::new();
+    tree.write("prisma/migrations/20240101_init/migration.sql", "SELECT 1;");
+    tree.write("db/migration/V1__init.sql", "SELECT 1;");
+    tree.write("node_modules/pkg/migrations/ignored.sql", "SELECT 1;");
+
+    let text = run(&["discover", tree.root_str()]);
+    assert_exit(&text, 0);
+    let output = stdout(&text);
+    assert!(output.contains("discovery"));
+    assert!(output.contains("Prisma"));
+    assert!(output.contains("prisma/migrations"));
+    assert!(output.contains("Flyway"));
+    assert!(output.contains("db/migration"));
+    assert!(!output.contains("node_modules"));
+    assert!(!output.contains("ignored.sql"));
+
+    let json = run(&["discover", tree.root_str(), "--format", "json"]);
+    assert_exit(&json, 0);
+    let value: Value = serde_json::from_str(&stdout(&json)).unwrap();
+    assert_eq!(value["schema_version"], 1);
+    assert_eq!(value["tool"], "migration-guard");
+    let directories = value["directories"].as_array().unwrap();
+    assert_eq!(directories.len(), 2);
+    assert_eq!(directories[0]["path"], "db/migration");
+    assert_eq!(directories[0]["framework"], "flyway");
+    assert_eq!(directories[0]["sql_files"], 1);
+    assert_eq!(directories[1]["path"], "prisma/migrations");
+    assert_eq!(directories[1]["framework"], "prisma");
+    assert_eq!(directories[1]["sql_files"], 1);
+}
+
+#[test]
+fn check_without_paths_discovers_migrations_and_preserves_the_exit_code() {
+    let tree = TempTree::new();
+    tree.write(
+        "prisma/migrations/20240101_init/migration.sql",
+        "DROP TABLE sessions;",
+    );
+    tree.write(
+        "db/migration/V1__init.sql",
+        "CREATE TABLE users (id bigint);",
+    );
+    tree.write(
+        "node_modules/pkg/migrations/ignored.sql",
+        "DROP TABLE ignored;",
+    );
+
+    let output = run(&[
+        "check",
+        "--root",
+        tree.root_str(),
+        "--fail-on",
+        "destructive",
+    ]);
+    assert_exit(&output, 2);
+    let text = stdout(&output);
+    assert!(text.contains("2 files"));
+    assert!(text.contains("prisma/migrations/20240101_init/migration.sql"));
+    assert!(text.contains("db/migration/V1__init.sql"));
+    assert!(!text.contains("node_modules"));
+    assert!(text.contains("MG001"));
+}
+
+#[test]
+fn check_without_paths_fails_when_nothing_is_discovered() {
+    let tree = TempTree::new();
+    tree.write("docs/readme.md", "no migrations here");
+
+    let output = run(&["check", "--root", tree.root_str()]);
+    assert_exit(&output, 1);
+    assert!(stdout(&output).is_empty());
+    let error = stderr(&output);
+    assert!(error.contains("no SQL migration directories found"));
+    assert!(error.contains("migration-guard discover"));
+}
+
+#[test]
+fn discover_with_no_directories_is_a_clean_result() {
+    let tree = TempTree::new();
+    tree.write("docs/readme.md", "no migrations here");
+
+    let output = run(&["discover", tree.root_str()]);
+    assert_exit(&output, 0);
+    assert!(stdout(&output).contains("No SQL migration directories found."));
+}
+
+#[test]
+fn discovery_root_conflicts_with_explicit_paths() {
+    let output = run(&["check", "tests/fixtures/safe.sql", "--root", "."]);
+    assert_exit(&output, 1);
+    assert!(stderr(&output).contains("cannot be used with"));
 }

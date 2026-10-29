@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-29
+
 ### Added
+- `migration-guard discover` lists known SQL migration directories for Flyway, Liquibase, Prisma, Drizzle, Supabase, and generic `migrations` layouts, with optional JSON output.
+- `migration-guard check` auto-discovers those directories when no paths are supplied, so it can run from a repository root without arguments. `--root` selects a different discovery root. If nothing is found, check exits `1` with an actionable error instead of a clean empty report.
 - `--format sarif` emits a SARIF 2.1.0 report for GitHub code scanning. Rule IDs match the text and JSON reports, and results point at the SQL file and statement line.
 - The composite Action writes and uploads SARIF by default (`sarif: true`), with a `category` input for separating runs. The caller needs `security-events: write`; the upload never changes the check's exit code.
+
+### Changed
+- `check` no longer requires a positional path. Explicit paths behave as before.
+- The composite Action's `paths` input now defaults to empty, which enables discovery. Set `paths: .` to scan every `.sql` file or pass specific paths to preserve the previous behavior.
 
 ## [0.3.1] - 2026-10-28
 
