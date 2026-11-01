@@ -13,7 +13,7 @@ jobs:
     name: migration-guard checks its own safe fixtures
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Uses the action.yml in this repository. The whole repo cannot be scanned
       # because tests/fixtures deliberately contains destructive and unparseable
